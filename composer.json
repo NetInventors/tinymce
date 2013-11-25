@@ -1,0 +1,21 @@
+{
+    "name": "ni-jmatthiesen/tinymce",
+    "description": "TinyMCE WYSIWYG editor",
+    "type": "component",
+    "homepage": "http://www.tinymce.com/",
+    "require": {
+        "robloach/component-installer": "*"
+    },
+    "extra": {
+        "component": {
+            "name": "tinymce",
+            "files": [
+                "build/**",
+                "js/tinymce/langs/**",
+                "js/tinymce/plugins/**",
+                "js/tinymce/skins/**",
+                "js/tinymce/themes/**"
+            ]
+        }
+    }
+}
