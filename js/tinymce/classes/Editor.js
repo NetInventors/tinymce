@@ -74,7 +74,7 @@ define("tinymce/Editor", [
 	var extend = Tools.extend, each = Tools.each, explode = Tools.explode;
 	var inArray = Tools.inArray, trim = Tools.trim, resolve = Tools.resolve;
 	var Event = EventUtils.Event;
-	var isGecko = Env.gecko, ie = Env.ie, isOpera = Env.opera;
+	var isGecko = Env.gecko, ie = Env.ie;
 
 	function getEventTarget(editor, eventName) {
 		if (eventName == 'selectionchange' || eventName == 'drop') {
@@ -311,6 +311,7 @@ define("tinymce/Editor", [
 				// Add hidden input for non input elements inside form elements
 				if (settings.hidden_input && !/TEXTAREA|INPUT/i.test(self.getElement().nodeName)) {
 					DOM.insertAfter(DOM.create('input', {type: 'hidden', name: id}), id);
+					self.hasHiddenInput = true;
 				}
 
 				// Pass submit/reset from form to editor instance
@@ -468,6 +469,7 @@ define("tinymce/Editor", [
 			var self = this, settings = self.settings, elm = self.getElement();
 			var w, h, minHeight, n, o, url, bodyId, bodyClass, re, i, initializedPlugins = [];
 
+			self.rtl = this.editorManager.i18n.rtl;
 			self.editorManager.add(self);
 
 			settings.aria_label = settings.aria_label || DOM.getAttrib(elm, 'aria-label', self.getLang('aria.rich_text_area'));
@@ -518,9 +520,6 @@ define("tinymce/Editor", [
 
 			// Create all plugins
 			each(settings.plugins.replace(/\-/g, '').split(/[ ,]/), initPlugin);
-
-			// Enables users to override the control factory
-			self.fire('BeforeRenderUI');
 
 			// Measure box
 			if (settings.render_ui && self.theme) {
@@ -600,11 +599,6 @@ define("tinymce/Editor", [
 				return self.initContentBody();
 			}
 
-			// User specified a document.domain value
-			if (document.domain && location.hostname != document.domain) {
-				self.editorManager.relaxedDomain = document.domain;
-			}
-
 			self.iframeHTML = settings.doctype + '<html><head>';
 
 			// We only need to override paths if we have to
@@ -642,13 +636,14 @@ define("tinymce/Editor", [
 			self.iframeHTML += '</head><body id="' + bodyId + '" class="mce-content-body ' + bodyClass + '" ' +
 				'onload="window.parent.tinymce.get(\'' + self.id + '\').fire(\'load\');"><br></body></html>';
 
-			// Domain relaxing enabled, then set document domain
-			// TODO: Fix this old stuff
-			if (self.editorManager.relaxedDomain && (ie || (isOpera && parseFloat(window.opera.version()) < 11))) {
-				// We need to write the contents here in IE since multiple writes messes up refresh button and back button
-				url = 'javascript:(function(){document.open();document.domain="' + document.domain + '";' +
-					'var ed = window.parent.tinymce.get("' + self.id + '");document.write(ed.iframeHTML);' +
-					'document.close();ed.initContentBody();})()';
+			var domainRelaxUrl = 'javascript:(function(){'+
+				'document.open();document.domain="' + document.domain + '";' +
+				'var ed = window.parent.tinymce.get("' + self.id + '");document.write(ed.iframeHTML);' +
+				'document.close();ed.initContentBody(true);})()';
+
+			// Domain relaxing is required since the user has messed around with document.domain
+			if (document.domain != location.hostname) {
+				url = domainRelaxUrl;
 			}
 
 			// Create iframe
@@ -669,6 +664,16 @@ define("tinymce/Editor", [
 				}
 			});
 
+			// Try accessing the document this will fail on IE when document.domain is set to the same as location.hostname
+			// Then we have to force domain relaxing using the domainRelaxUrl approach very ugly!!
+			if (ie) {
+				try {
+					self.getDoc();
+				} catch (e) {
+					n.src = url = domainRelaxUrl;
+				}
+			}
+
 			self.contentAreaContainer = o.iframeContainer;
 
 			if (o.editorContainer) {
@@ -678,7 +683,7 @@ define("tinymce/Editor", [
 			DOM.get(self.id).style.display = 'none';
 			DOM.setAttrib(self.id, 'aria-hidden', true);
 
-			if (!self.editorManager.relaxedDomain || !url) {
+			if (!url) {
 				self.initContentBody();
 			}
 
@@ -692,7 +697,7 @@ define("tinymce/Editor", [
 		 * @method initContentBody
 		 * @private
 		 */
-		initContentBody: function() {
+		initContentBody: function(skipWrite) {
 			var self = this, settings = self.settings, targetElm = DOM.get(self.id), doc = self.getDoc(), body, contentCssText;
 
 			// Restore visibility on target element
@@ -701,14 +706,10 @@ define("tinymce/Editor", [
 			}
 
 			// Setup iframe body
-			if ((!ie || !self.editorManager.relaxedDomain) && !settings.content_editable) {
+			if (!skipWrite && !settings.content_editable) {
 				doc.open();
 				doc.write(self.iframeHTML);
 				doc.close();
-
-				if (self.editorManager.relaxedDomain) {
-					doc.domain = self.editorManager.relaxedDomain;
-				}
 			}
 
 			if (settings.content_editable) {
@@ -739,6 +740,10 @@ define("tinymce/Editor", [
 			body.disabled = true;
 
 			if (!settings.readonly) {
+				if (self.inline && DOM.getStyle(body, 'position', true) == 'static') {
+					body.style.position = 'relative';
+				}
+
 				body.contentEditable = self.getParam('content_editable_state', true);
 			}
 
@@ -1025,7 +1030,7 @@ define("tinymce/Editor", [
 					body = self.getBody();
 
 					// Check for setActive since it doesn't scroll to the element
-					if (body.setActive) {
+					if (body.setActive && Env.ie < 11) {
 						body.setActive();
 					} else {
 						body.focus();
@@ -1529,7 +1534,7 @@ define("tinymce/Editor", [
 			var self = this, doc = self.getDoc();
 
 			// Fixed bug where IE has a blinking cursor left from the editor
-			if (ie && doc) {
+			if (ie && doc && !self.inline) {
 				doc.execCommand('SelectAll');
 			}
 
@@ -1700,13 +1705,10 @@ define("tinymce/Editor", [
 
 				// Check if forcedRootBlock is configured and that the block is a valid child of the body
 				if (forcedRootBlockName && self.schema.isValidChild(body.nodeName.toLowerCase(), forcedRootBlockName.toLowerCase())) {
-					if (ie && ie < 11) {
-						// IE renders BR elements in blocks so lets just add an empty block
-						content = '<' + forcedRootBlockName + '></' + forcedRootBlockName + '>';
-					} else {
-						content = '<' + forcedRootBlockName + '><br data-mce-bogus="1"></' + forcedRootBlockName + '>';
-					}
-				} else if (!ie) {
+					// Padd with bogus BR elements on modern browsers and IE 7 and 8 since they don't render empty P tags properly
+					content = ie && ie < 11 ? '' : '<br data-mce-bogus="1">';
+					content = self.dom.createHTML(forcedRootBlockName, self.settings.forced_root_block_attrs, content);
+				} else if (!ie || ie < 11) {
 					// We need to add a BR when forced_root_block is disabled on non IE browsers to place the caret
 					content = '<br data-mce-bogus="1">';
 				}
@@ -1736,13 +1738,6 @@ define("tinymce/Editor", [
 				/*if (!self.settings.content_editable || document.activeElement === self.getBody()) {
 					self.selection.normalize();
 				}*/
-			}
-
-			// Move selection to start of body if it's a after init setContent call
-			// This prevents IE 7/8 from moving focus to empty editors
-			if (!args.initial) {
-				self.selection.select(body, true);
-				self.selection.collapse(true);
 			}
 
 			return args.content;
@@ -2009,13 +2004,19 @@ define("tinymce/Editor", [
 		 * @method remove
 		 */
 		remove: function() {
-			var self = this, elm = self.getContainer(), doc = self.getDoc();
+			var self = this;
 
 			if (!self.removed) {
 				self.removed = 1; // Cancels post remove event execution
 
+				// Remove any hidden input
+				if (self.hasHiddenInput) {
+					DOM.remove(self.getElement().nextSibling);
+				}
+
 				// Fixed bug where IE has a blinking cursor left from the editor
-				if (ie && doc) {
+				var doc = self.getDoc();
+				if (ie && doc && !self.inline) {
 					doc.execCommand('SelectAll');
 				}
 
@@ -2031,6 +2032,7 @@ define("tinymce/Editor", [
 					Event.unbind(self.getDoc());
 				}
 
+				var elm = self.getContainer();
 				Event.unbind(self.getBody());
 				Event.unbind(elm);
 
@@ -2044,6 +2046,10 @@ define("tinymce/Editor", [
 
 		bindNative: function(name) {
 			var self = this;
+
+			if (self.settings.readonly) {
+				return;
+			}
 
 			if (self.initialized) {
 				self.dom.bind(getEventTarget(self, name), name, function(e) {
@@ -2079,6 +2085,13 @@ define("tinymce/Editor", [
 
 			// One time is enough
 			if (self.destroyed) {
+				return;
+			}
+
+			// If user manually calls destroy and not remove
+			// Users seems to have logic that calls destroy instead of remove
+			if (!automatic && !self.removed) {
+				self.remove();
 				return;
 			}
 

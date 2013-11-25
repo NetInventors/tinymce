@@ -983,8 +983,8 @@ define("tinymce/dom/DOMUtils", [
 		 * Returns the absolute x, y position of a node. The position will be returned in an object with x, y fields.
 		 *
 		 * @method getPos
-		 * @param {Element/String} n HTML element or element id to get x, y position from.
-		 * @param {Element} ro Optional root element to stop calculations at.
+		 * @param {Element/String} elm HTML element or element id to get x, y position from.
+		 * @param {Element} rootElm Optional root element to stop calculations at.
 		 * @return {object} Absolute position of the specified element object with x, y fields.
 		 */
 		getPos: function(elm, rootElm) {
@@ -2012,6 +2012,12 @@ define("tinymce/dom/DOMUtils", [
 				}
 
 				self.boundEvents = null;
+			}
+
+			// Restore sizzle document to window.document
+			// Since the current document might be removed producing "Permission denied" on IE see #6325
+			if (Sizzle.setDocument) {
+				Sizzle.setDocument();
 			}
 
 			self.win = self.doc = self.root = self.events = self.frag = null;

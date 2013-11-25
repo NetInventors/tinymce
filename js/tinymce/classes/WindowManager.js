@@ -66,6 +66,8 @@ define("tinymce/WindowManager", [
 		self.open = function(args, params) {
 			var win;
 
+			editor.editorManager.activeEditor = editor;
+
 			args.title = args.title || ' ';
 
 			// Handle URL
@@ -149,7 +151,9 @@ define("tinymce/WindowManager", [
 		 */
 		self.alert = function(message, callback, scope) {
 			MessageBox.alert(message, function() {
-				callback.call(scope || this);
+				if (callback) {
+					callback.call(scope || this);
+				}
 			});
 		};
 
