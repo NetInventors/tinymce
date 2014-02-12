@@ -47,10 +47,9 @@ define("tinymce/tableplugin/Plugin", [
 		}
 
 		function tableDialog() {
-			var dom = editor.dom, tableElm, data, createNewTable;
+			var dom = editor.dom, tableElm, data;
 
-			tableElm = editor.dom.getParent(editor.selection.getStart(), 'table');
-			createNewTable = false;
+			tableElm = dom.getParent(editor.selection.getStart(), 'table');
 
 			data = {
 				width: removePxSuffix(dom.getStyle(tableElm, 'width') || dom.getAttrib(tableElm, 'width')),
@@ -79,8 +78,6 @@ define("tinymce/tableplugin/Plugin", [
 						maxWidth: 50
 					},
 					items: [
-						createNewTable ? {label: 'Cols', name: 'cols', disabled: true} : null,
-						createNewTable ? {label: 'Rows', name: 'rows', disabled: true} : null,
 						{label: 'Width', name: 'width'},
 						{label: 'Height', name: 'height'},
 						{label: 'Cell spacing', name: 'cellspacing'},
@@ -172,6 +169,11 @@ define("tinymce/tableplugin/Plugin", [
 			}
 
 			cellElm = cellElm || cells[0];
+
+			if (!cellElm) {
+				// If this element is null, return now to avoid crashing.
+				return;
+			}
 
 			data = {
 				width: removePxSuffix(dom.getStyle(cellElm, 'width') || dom.getAttrib(cellElm, 'width')),
@@ -291,6 +293,10 @@ define("tinymce/tableplugin/Plugin", [
 			});
 
 			rowElm = rows[0];
+			if (!rowElm) {
+				// If this element is null, return now to avoid crashing.
+				return;
+			}
 
 			data = {
 				height: removePxSuffix(dom.getStyle(rowElm, 'height') || dom.getAttrib(rowElm, 'height')),
@@ -526,6 +532,7 @@ define("tinymce/tableplugin/Plugin", [
 					onclick: function(e) {
 						if (e.target.nodeName == 'A' && this.lastPos) {
 							e.preventDefault();
+							e.stopPropagation();
 
 							insertTable(this.lastPos[0] + 1, this.lastPos[1] + 1);
 
