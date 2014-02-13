@@ -106,7 +106,7 @@ define("tinymce/dom/EventUtils", [], function() {
 				} else {
 					originalEvent.cancelBubble = true; // IE
 				}
-			 }
+			}
 		};
 
 		// Add stopImmediatePropagation
@@ -146,7 +146,7 @@ define("tinymce/dom/EventUtils", [], function() {
 		}
 
 		function waitForDomLoaded() {
-			if (doc.readyState === "complete") {
+			if (doc.readyState === "complete" || doc.readyState === "interactive") {
 				removeEvent(doc, "readystatechange", waitForDomLoaded);
 				readyHandler();
 			}
@@ -177,7 +177,7 @@ define("tinymce/dom/EventUtils", [], function() {
 			addEvent(doc, "readystatechange", waitForDomLoaded);
 
 			// Wait until we can scroll, when we can the DOM is initialized
-			if (doc.documentElement.doScroll && win === win.top) {
+			if (doc.documentElement.doScroll && win.self === win.top) {
 				tryScroll();
 			}
 		}

@@ -198,7 +198,7 @@ define("tinymce/tableplugin/TableGrid", [
 
 			each(table.rows, function(row) {
 				each(row.cells, function(cell) {
-					if (dom.hasClass(cell, 'mce-item-selected') || cell == selectedCell.elm) {
+					if (dom.hasClass(cell, 'mce-item-selected') || (selectedCell && cell == selectedCell.elm)) {
 						rows.push(row);
 						return false;
 					}
@@ -303,11 +303,14 @@ define("tinymce/tableplugin/TableGrid", [
 			// Restore selection to start position if it still exists
 			buildGrid();
 
-			// Restore the selection to the closest table position
-			row = grid[Math.min(grid.length - 1, startPos.y)];
-			if (row) {
-				selection.select(row[Math.min(row.length - 1, startPos.x)].elm, true);
-				selection.collapse(true);
+			// If we have a valid startPos object
+			if (startPos) {
+				// Restore the selection to the closest table position
+				row = grid[Math.min(grid.length - 1, startPos.y)];
+				if (row) {
+					selection.select(row[Math.min(row.length - 1, startPos.x)].elm, true);
+					selection.collapse(true);
+				}
 			}
 		}
 
@@ -395,11 +398,13 @@ define("tinymce/tableplugin/TableGrid", [
 					});
 				});
 
-				// Use selection
-				startX = startPos.x;
-				startY = startPos.y;
-				endX = endPos.x;
-				endY = endPos.y;
+				// Use selection, but make sure startPos is valid before accessing
+				if (startPos) {
+					startX = startPos.x;
+					startY = startPos.y;
+					endX = endPos.x;
+					endY = endPos.y;
+				}
 			}
 
 			// Find start/end cells
@@ -477,6 +482,11 @@ define("tinymce/tableplugin/TableGrid", [
 					return !posY;
 				}
 			});
+
+			// If posY is undefined there is nothing for us to do here...just return to avoid crashing below
+			if (posY === undefined) {
+				return;
+			}
 
 			for (x = 0; x < grid[0].length; x++) {
 				// Cell not found could be because of an invalid table structure
@@ -1236,6 +1246,31 @@ define("tinymce/tableplugin/Quirks", [
 			});
 		}
 
+		/**
+		 * Delete table if all cells are selected.
+		 */
+		function deleteTable() {
+			editor.on('keydown', function(e) {
+				if ((e.keyCode == VK.DELETE || e.keyCode == VK.BACKSPACE) && !e.isDefaultPrevented()) {
+					var table = editor.dom.getParent(editor.selection.getStart(), 'table');
+
+					if (table) {
+						var cells = editor.dom.select('td,th', table), i = cells.length;
+						while (i--) {
+							if (!editor.dom.hasClass(cells[i], 'mce-item-selected')) {
+								return;
+							}
+						}
+
+						e.preventDefault();
+						editor.execCommand('mceTableDelete');
+					}
+				}
+			});
+		}
+
+		deleteTable();
+
 		if (Env.webkit) {
 			moveWebKitSelection();
 			fixTableCellSelection();
@@ -1474,10 +1509,9 @@ define("tinymce/tableplugin/Plugin", [
 		}
 
 		function tableDialog() {
-			var dom = editor.dom, tableElm, data, createNewTable;
+			var dom = editor.dom, tableElm, data;
 
-			tableElm = editor.dom.getParent(editor.selection.getStart(), 'table');
-			createNewTable = false;
+			tableElm = dom.getParent(editor.selection.getStart(), 'table');
 
 			data = {
 				width: removePxSuffix(dom.getStyle(tableElm, 'width') || dom.getAttrib(tableElm, 'width')),
@@ -1506,8 +1540,6 @@ define("tinymce/tableplugin/Plugin", [
 						maxWidth: 50
 					},
 					items: [
-						createNewTable ? {label: 'Cols', name: 'cols', disabled: true} : null,
-						createNewTable ? {label: 'Rows', name: 'rows', disabled: true} : null,
 						{label: 'Width', name: 'width'},
 						{label: 'Height', name: 'height'},
 						{label: 'Cell spacing', name: 'cellspacing'},
@@ -1599,6 +1631,11 @@ define("tinymce/tableplugin/Plugin", [
 			}
 
 			cellElm = cellElm || cells[0];
+
+			if (!cellElm) {
+				// If this element is null, return now to avoid crashing.
+				return;
+			}
 
 			data = {
 				width: removePxSuffix(dom.getStyle(cellElm, 'width') || dom.getAttrib(cellElm, 'width')),
@@ -1718,6 +1755,10 @@ define("tinymce/tableplugin/Plugin", [
 			});
 
 			rowElm = rows[0];
+			if (!rowElm) {
+				// If this element is null, return now to avoid crashing.
+				return;
+			}
 
 			data = {
 				height: removePxSuffix(dom.getStyle(rowElm, 'height') || dom.getAttrib(rowElm, 'height')),
@@ -1953,6 +1994,7 @@ define("tinymce/tableplugin/Plugin", [
 					onclick: function(e) {
 						if (e.target.nodeName == 'A' && this.lastPos) {
 							e.preventDefault();
+							e.stopPropagation();
 
 							insertTable(this.lastPos[0] + 1, this.lastPos[1] + 1);
 

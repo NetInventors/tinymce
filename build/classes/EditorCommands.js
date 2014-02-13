@@ -183,7 +183,7 @@ define("tinymce/EditorCommands", [
 			},
 
 			// Override unlink command
-			unlink: function(command) {
+			unlink: function() {
 				if (selection.isCollapsed()) {
 					var elm = selection.getNode();
 					if (elm.tagName == 'A') {
@@ -193,8 +193,7 @@ define("tinymce/EditorCommands", [
 					return;
 				}
 
-				execNativeCommand(command);
-				selection.collapse(FALSE);
+				formatter.remove("link");
 			},
 
 			// Override justify commands to use the text formatter engine
@@ -523,10 +522,10 @@ define("tinymce/EditorCommands", [
 					}
 
 					each(selection.getSelectedBlocks(), function(element) {
-						var indentStyleName;
-
 						if (element.nodeName != "LI") {
-							indentStyleName = dom.getStyle(element, 'direction', true) == 'rtl' ? 'paddingRight' : 'paddingLeft';
+							var indentStyleName = editor.getParam('indent_use_margin', false) ? 'margin' : 'padding';
+
+							indentStyleName += dom.getStyle(element, 'direction', true) == 'rtl' ? 'Right' : 'Left';
 
 							if (command == 'outdent') {
 								value = Math.max(0, parseInt(element.style[indentStyleName] || 0, 10) - intentValue);
